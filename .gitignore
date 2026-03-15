@@ -1,0 +1,25 @@
+# Dataset
+Dataset_of_Eplipsy/
+
+# Temporary / Legacy UI files
+backend/static/index1.html
+backend/static/script1.js
+backend/static/style1.css
+backend/static/style1.js
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+saved_models/
+
+# Salesforce / Local tools
+.sfdx/
+.gemini/
+
+# Misc
+.DS_Store
+Thumbs.db

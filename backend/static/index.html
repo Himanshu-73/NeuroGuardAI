@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroGuard | Real-Time Seizure Detection</title>
+    <meta name="description"
+        content="AI-powered real-time epilepsy seizure detection using CNN-BiLSTM-Attention ensemble">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="logo.png">
+</head>
+
+<body>
+    <!-- Seizure Alert Overlay -->
+    <div id="seizure-overlay" class="seizure-overlay hidden"></div>
+
+    <!-- Animated Background Particles -->
+    <div class="bg-particles" id="bg-particles"></div>
+    <div class="bg-grid"></div>
+    <div class="scanline"></div>
+
+    <!-- Header -->
+    <header class="topbar">
+        <div class="brand-group">
+            <div class="brand-icon">
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <circle cx="18" cy="18" r="17" stroke="url(#brandGrad)" stroke-width="2" />
+                    <path d="M9 18 Q 12 10, 15 18 Q 18 26, 21 18 Q 24 10, 27 18" stroke="#22d3ee" stroke-width="2.5"
+                        fill="none" stroke-linecap="round" />
+                    <defs>
+                        <linearGradient id="brandGrad" x1="0" y1="0" x2="36" y2="36">
+                            <stop offset="0%" stop-color="#22d3ee" />
+                            <stop offset="100%" stop-color="#a855f7" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div>
+                <p class="kicker">Clinical Neuroinformatics Platform</p>
+                <h1 class="brand">NeuroGuard<span class="brand-ai">AI</span></h1>
+                <p class="subtitle">CNN-BiLSTM-Attention · Ensemble Verification · Real-time EEG Analysis</p>
+            </div>
+        </div>
+        <div class="topbar-right">
+            <div id="active-patient" class="hud-pill patient-pill">
+                <span class="pill-dot"></span>
+                Patient: Not Selected
+            </div>
+            <div class="status-box">
+                <!-- Theme toggle -->
+                <button class="theme-toggle" id="theme-toggle-btn" title="Toggle dark/light mode"
+                    onclick="toggleTheme()">
+                    <div class="toggle-track">
+                        <div class="toggle-thumb" id="toggle-thumb">☀️</div>
+                    </div>
+                    <span class="toggle-icon" id="toggle-label">Light</span>
+                </button>
+                <span id="status-indicator" class="status-dot offline"></span>
+                <span id="status-text">OFFLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- LEFT: Brain 3D + Stream Controls + Model Training -->
+        <section class="col-stack">
+            <section class="panel left-panel glass-deep fade-in-up" style="--delay:0s">
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title">Neural Activity Monitor</h2>
+                        <p class="panel-sub">Real-time 3D brain signal visualization</p>
+                    </div>
+                    <div class="live-badge" id="live-indicator">
+                        <span class="live-pulse"></span> LIVE
+                    </div>
+                </div>
+                <div id="brain-container" class="brain-canvas"></div>
+                <div class="stream-controls">
+                    <div class="stream-state-row">
+                        <span id="stream-state" class="stream-label">Live Stream: <em>Stopped</em></span>
+                        <span id="threshold-badge" class="hud-pill mini">Threshold: 0.500</span>
+                    </div>
+                    <div class="button-row">
+                        <button id="btn-start" type="button" class="btn btn-success glow-success"
+                            onclick="startStream()">
+                            <span class="btn-icon">▶</span> Start Stream
+                        </button>
+                        <button id="btn-stop" type="button" class="btn btn-danger glow-danger" onclick="stopStream()">
+                            <span class="btn-icon">■</span> Stop Stream
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Model Training -->
+            <section class="panel glass training-panel fade-in-up" style="--delay:0.1s">
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title">Model Management</h2>
+                        <p class="panel-sub">CNN-BiLSTM-Attention Training</p>
+                    </div>
+                    <span id="train-status-badge" class="status-tag">IDLE</span>
+                </div>
+                <div class="training-content">
+                    <p id="train-status-text" class="panel-copy">Ready to start background training.</p>
+                    <button id="train-start-btn" type="button" class="btn btn-primary full"
+                        onclick="startModelTraining()">
+                        <span class="btn-icon">⚡</span> Start Training
+                    </button>
+                    <div id="train-metrics" class="train-metrics hidden">
+                        <!-- Metrics injected by JS -->
+                    </div>
+                </div>
+            </section>
+        </section>
+
+        <!-- MIDDLE: Analysis + Training + Probability + EEG Chart -->
+        <section class="col-stack">
+            <!-- Analyze EEG -->
+            <section class="panel glass fade-in-up" style="--delay:0.1s">
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title">Analyze EEG Signal</h2>
+                        <p class="panel-sub">Upload file or paste raw values</p>
+                    </div>
+                    <span id="upload-status" class="status-tag">Ready</span>
+                </div>
+                <label class="field-label">Upload EEG File</label>
+                <label class="file-select" id="file-drop-zone">
+                    <div class="file-icon">📂</div>
+                    <span>Drop or Select .txt / .csv</span>
+                    <input type="file" id="file-upload" accept=".txt,.csv" onchange="handleFileUpload(this)">
+                </label>
+                <label class="field-label">Or Paste Raw EEG Values</label>
+                <div class="inline-textarea">
+                    <textarea id="manual-input" rows="3"
+                        placeholder="Comma separated EEG amplitude values..."></textarea>
+                    <button type="button" class="btn btn-primary small" onclick="handleManualInput()">Analyze</button>
+                </div>
+                <div id="analysis-result" class="analysis-result hidden">
+                    <div class="result-row">
+                        <span>Max Probability</span>
+                        <strong id="result-prob">--</strong>
+                    </div>
+                    <div class="result-row">
+                        <span>Seizure Segments</span>
+                        <strong id="result-segments">--</strong>
+                    </div>
+                    <div id="result-verdict" class="verdict">--</div>
+                </div>
+            </section>
+
+
+            <!-- Probability Gauge -->
+            <section class="panel glass probability-panel fade-in-up" style="--delay:0.3s">
+                <h2 class="prob-title">Seizure Probability</h2>
+                <div class="gauge-container">
+                    <svg class="gauge-svg" viewBox="0 0 200 120">
+                        <defs>
+                            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#10b981" />
+                                <stop offset="50%" stop-color="#f59e0b" />
+                                <stop offset="100%" stop-color="#f43f5e" />
+                            </linearGradient>
+                        </defs>
+                        <!-- Track -->
+                        <path d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="rgba(255,255,255,0.08)"
+                            stroke-width="14" stroke-linecap="round" />
+                        <!-- Fill -->
+                        <path id="gauge-fill" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="url(#gaugeGrad)"
+                            stroke-width="14" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251"
+                            style="transition: stroke-dashoffset 0.5s ease;" />
+                        <!-- Needle dot -->
+                        <circle id="gauge-dot" cx="20" cy="110" r="7" fill="#22d3ee"
+                            style="filter: drop-shadow(0 0 6px #22d3ee)" />
+                    </svg>
+                    <div class="gauge-center">
+                        <div id="prediction-value" class="prob-value">0.0%</div>
+                        <div id="risk-label" class="risk-badge risk-low">Low Risk</div>
+                    </div>
+                </div>
+                <div class="prob-track">
+                    <div id="prediction-bar" class="prob-fill"></div>
+                </div>
+            </section>
+
+            <!-- Live EEG Chart -->
+            <section class="panel glass chart-panel fade-in-up" style="--delay:0.4s">
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title">Live EEG Waveform</h2>
+                        <p class="panel-sub">Last 200 sample points</p>
+                    </div>
+                    <span class="pulse-dot-green"></span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="eegChart"></canvas>
+                </div>
+            </section>
+        </section>
+
+        <!-- BOTTOM: Patient Dossier -->
+        <section class="panel glass fade-in-up" style="--delay:0.15s; grid-column: 1 / -1;">
+            <div class="panel-head">
+                <div>
+                    <h2 class="panel-title">Patient Dossier</h2>
+                    <p class="panel-sub">Clinical profile</p>
+                </div>
+                <span id="patient-save-status" class="status-tag">Not Saved</span>
+            </div>
+            <div class="patient-grid">
+                <label class="field">
+                    <span>Full Name</span>
+                    <input id="patient-name" type="text" placeholder="Patient name">
+                </label>
+                <label class="field">
+                    <span>Patient ID</span>
+                    <input id="patient-id" type="text" placeholder="Auto if empty">
+                </label>
+                <label class="field">
+                    <span>Age</span>
+                    <input id="patient-age" type="number" placeholder="Age">
+                </label>
+                <label class="field">
+                    <span>Sex</span>
+                    <select id="patient-sex">
+                        <option value="">Select</option>
+                        <option value="Female">Female</option>
+                        <option value="Male">Male</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>Date of Birth</span>
+                    <input id="patient-dob" type="date">
+                </label>
+                <label class="field">
+                    <span>Blood Group</span>
+                    <input id="patient-blood-group" type="text" placeholder="e.g. O+">
+                </label>
+                <label class="field">
+                    <span>Phone</span>
+                    <input id="patient-phone" type="text" placeholder="Mobile number">
+                </label>
+                <label class="field">
+                    <span>Email</span>
+                    <input id="patient-email" type="email" placeholder="Email">
+                </label>
+                <label class="field span-2">
+                    <span>Emergency Contact</span>
+                    <input id="patient-emergency-contact" type="text" placeholder="Name and phone">
+                </label>
+                <label class="field span-2">
+                    <span>Allergies</span>
+                    <input id="patient-allergies" type="text" placeholder="Drug or food allergies">
+                </label>
+                <label class="field span-2">
+                    <span>Current Medications</span>
+                    <input id="patient-medications" type="text" placeholder="Current medications">
+                </label>
+                <label class="field span-2">
+                    <span>Clinical Notes</span>
+                    <textarea id="patient-history-notes" rows="3"
+                        placeholder="Seizure type, history, notes..."></textarea>
+                </label>
+            </div>
+            <div class="btn-row">
+                <button type="button" class="btn btn-primary" onclick="savePatientDetails()">
+                    <span class="btn-icon">💾</span> Save &amp; Generate Report
+                </button>
+                <button id="download-report-btn" type="button" class="btn btn-accent hidden" onclick="downloadReport()">
+                    <span class="btn-icon">📥</span> Download Report
+                </button>
+                <button type="button" class="btn btn-ghost" onclick="clearPatientForm()">
+                    <span class="btn-icon">🔄</span> New Patient
+                </button>
+            </div>
+            <div id="patient-overview" class="patient-overview">
+                <p style="opacity:0.5;font-size:0.82rem;">No active patient record yet.</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
